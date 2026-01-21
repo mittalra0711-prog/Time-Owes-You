@@ -1,226 +1,99 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Time Owes You</title>
-
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;touch-action:none}
-body{background:#0e0e0e;color:white;font-family:Arial;overflow:hidden}
-canvas{display:block}
-
-button{
-background:#333;color:white;border:none;
-border-radius:10px;padding:12px 18px;
-font-size:16px;
-}
-
-.screen{
-position:fixed;inset:0;
-display:flex;flex-direction:column;
-align-items:center;justify-content:center;
-gap:14px;background:#0e0e0e;
-z-index:10;
-}
-
-#ui{
-position:fixed;top:10px;left:50%;
-transform:translateX(-50%);
-text-align:center;z-index:5;display:none;
-}
-
-#controls,#touchPad,#boost{
-position:fixed;z-index:5;display:none;
-}
-
-#controls{bottom:20px;left:20px}
-#controls button{width:60px;height:60px;font-size:24px}
-
-#touchPad{
-bottom:30px;left:30px;
-width:120px;height:120px;
-border-radius:50%;
-background:rgba(255,255,255,0.08);
-}
-
-#boost{
-bottom:20px;right:20px;
-width:80px;height:80px;border-radius:50%;
-background:orange;color:black;font-weight:bold;
-}
+body { margin:0; background:#0b1020; }
 </style>
 </head>
-
 <body>
 
-<div id="menu" class="screen">
-<h1>TIME OWES YOU</h1>
-<button onclick="startGame()">PLAY</button>
-<button onclick="openOptions()">OPTIONS</button>
-</div>
-
-<div id="options" class="screen" style="display:none">
-<h2>CONTROLS</h2>
-<button onclick="setControl('buttons')">Arrow Buttons</button>
-<button onclick="setControl('touch')">Touch Pad</button>
-<button onclick="closeOptions()">BACK</button>
-</div>
-
-<div id="gameOver" class="screen" style="display:none">
-<h2>GAME OVER</h2>
-<div id="finalStats"></div>
-<button onclick="restart()">RESTART</button>
-<button onclick="backToMenu()">MENU</button>
-</div>
-
-<div id="ui">
-<div>TIME: <span id="time">30</span></div>
-<div>MISSION: <span id="mission">Collect Orbs</span></div>
-</div>
-
-<canvas id="game"></canvas>
-
-<div id="controls">
-<button id="up">↑</button><br>
-<button id="left">←</button>
-<button id="down">↓</button>
-<button id="right">→</button>
-</div>
-
-<div id="touchPad"></div>
-<button id="boost">BOOST</button>
-
 <script>
-window.onload=()=>{
+let timeLeft = 30;
+let boost = false;
+let boostTimer = 0;
 
-/* ===== SETUP ===== */
-const c=document.getElementById("game"),ctx=c.getContext("2d");
-function resize(){c.width=innerWidth;c.height=innerHeight}
-resize();addEventListener("resize",resize);
-
-/* ===== STATE ===== */
-let control=localStorage.getItem("control")||"buttons";
-let running=false,time=30,last=Date.now(),orbs=0;
-let boost=false,boostT=0;
-
-const player={x:c.width/2,y:c.height/2,r:16,s:4};
-const enemy={x:100,y:100,r:14,s:2};
-const orb={x:200,y:200,r:10};
-
-/* ===== UI ===== */
-const ui=timeUI=document.getElementById("ui");
-const timeSpan=document.getElementById("time");
-const missionSpan=document.getElementById("mission");
-
-/* ===== CONTROLS ===== */
-let up=false,down=false,left=false,right=false;
-
-function bindBtn(id,set){
-const b=document.getElementById(id);
-b.ontouchstart=e=>{e.preventDefault();set(true)};
-b.ontouchend=e=>{e.preventDefault();set(false)};
-}
-bindBtn("up",v=>up=v);
-bindBtn("down",v=>down=v);
-bindBtn("left",v=>left=v);
-bindBtn("right",v=>right=v);
-
-/* Touch Pad */
-const pad=document.getElementById("touchPad");
-pad.ontouchmove=e=>{
-const t=e.touches[0];
-const r=pad.getBoundingClientRect();
-const dx=t.clientX-(r.left+r.width/2);
-const dy=t.clientY-(r.top+r.height/2);
-up=dy<-20;down=dy>20;left=dx<-20;right=dx>20;
-};
-pad.ontouchend=()=>up=down=left=right=false;
-
-/* Boost */
-boostBtn=document.getElementById("boost");
-boostBtn.ontouchstart=e=>{
-e.preventDefault();
-if(!boost){boost=true;boostT=5;}
+const config = {
+  type: Phaser.AUTO,
+  width: window.innerWidth,
+  height: window.innerHeight,
+  backgroundColor: "#0b1020",
+  physics: {
+    default: "arcade",
+    arcade: { debug:false }
+  },
+  scene: { preload, create, update }
 };
 
-/* ===== GAME FLOW ===== */
-function startGame(){
-menu.style.display="none";
-ui.style.display="block";
-boostBtn.style.display="block";
-(control==="buttons"?controls:touchPad).style.display="block";
+new Phaser.Game(config);
 
-time=30;orbs=0;boost=false;
-player.x=c.width/2;player.y=c.height/2;
-spawnOrb();running=true;last=Date.now();loop();
+let player, enemy, orb, timeText, joystick;
+
+function preload() {}
+
+function create() {
+  this.cameras.main.setBackgroundColor("#0b1020");
+
+  player = this.physics.add.circle(400,300,16,0x00ffff);
+  enemy  = this.physics.add.circle(100,100,14,0xff3333);
+  orb    = this.physics.add.circle(200,200,10,0x00ff00);
+
+  player.body.setCollideWorldBounds(true);
+  enemy.body.setCollideWorldBounds(true);
+
+  timeText = this.add.text(20,20,"Time: 30",{fontSize:"20px",fill:"#fff"});
+
+  // Simple joystick
+  joystick = this.plugins.get('rexvirtualjoystickplugin')?.add(this,{
+    x: 100,
+    y: this.scale.height-100,
+    radius: 60,
+    base: this.add.circle(0,0,60,0x888888,0.2),
+    thumb: this.add.circle(0,0,30,0xffffff,0.4),
+  });
+
+  // Fallback manual joystick
+  this.input.on("pointermove", p=>{
+    player.x = Phaser.Math.Clamp(p.x,0,this.scale.width);
+    player.y = Phaser.Math.Clamp(p.y,0,this.scale.height);
+  });
+
+  this.physics.add.overlap(player, orb, ()=>{
+    timeLeft += 10;
+    orb.setPosition(
+      Phaser.Math.Between(50,this.scale.width-50),
+      Phaser.Math.Between(50,this.scale.height-50)
+    );
+  });
+
+  this.physics.add.overlap(player, enemy, ()=>{
+    timeLeft -= 7;
+  });
+
+  this.time.addEvent({
+    delay:1000,
+    loop:true,
+    callback:()=>{
+      timeLeft--;
+      if(boost){
+        boostTimer--;
+        if(boostTimer<=0) boost=false;
+      }
+      timeText.setText("Time: "+timeLeft);
+      if(timeLeft<=0){
+        this.scene.restart();
+        timeLeft=30;
+      }
+    }
+  });
 }
 
-function endGame(){
-running=false;
-ui.style.display="none";
-controls.style.display="none";
-touchPad.style.display="none";
-boostBtn.style.display="none";
-finalStats.innerHTML=`Orbs Collected: ${orbs}`;
-gameOver.style.display="flex";
+function update() {
+  this.physics.moveToObject(enemy, player, 100);
 }
-
-function loop(){
-if(!running)return;
-requestAnimationFrame(loop);
-
-const now=Date.now();
-if(now-last>=1000){
-time--;last=now;
-timeSpan.textContent=time;
-if(boost){boostT--;if(boostT<=0)boost=false;}
-if(time<=0){endGame();return;}
-}
-
-const sp=player.s*(boost?2:1);
-if(up)player.y-=sp;if(down)player.y+=sp;
-if(left)player.x-=sp;if(right)player.x+=sp;
-
-enemy.x+=Math.sign(player.x-enemy.x)*enemy.s;
-enemy.y+=Math.sign(player.y-enemy.y)*enemy.s;
-
-if(dist(player,orb)<26){
-time+=10;orbs++;spawnOrb();
-missionSpan.textContent=`Collect Orbs (${orbs})`;
-}
-if(dist(player,enemy)<30)time-=7;
-
-draw();
-}
-
-function draw(){
-ctx.clearRect(0,0,c.width,c.height);
-drawC(player,boost?"orange":"cyan");
-drawC(orb,"lime");
-drawC(enemy,"red");
-}
-function drawC(o,col){
-ctx.fillStyle=col;ctx.beginPath();
-ctx.arc(o.x,o.y,o.r,0,7);ctx.fill();
-}
-function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
-function spawnOrb(){
-orb.x=Math.random()*(c.width-40)+20;
-orb.y=Math.random()*(c.height-40)+20;
-}
-
-/* ===== MENUS ===== */
-window.openOptions=()=>{menu.style.display="none";options.style.display="flex"}
-window.closeOptions=()=>{options.style.display="none";menu.style.display="flex"}
-window.setControl=c=>{
-control=c;localStorage.setItem("control",c);
-alert("Control set to "+c);
-}
-window.restart=()=>{gameOver.style.display="none";startGame()}
-window.backToMenu=()=>{gameOver.style.display="none";menu.style.display="flex"}
-
-};
 </script>
 
 </body>
